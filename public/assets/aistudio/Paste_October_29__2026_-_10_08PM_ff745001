@@ -1,0 +1,1022 @@
+# NEXORA STORE — MASTER BUILD PROMPT
+
+## ROLE AND OBJECTIVE
+
+Act as a principal software architect, senior full-stack engineer, senior UI/UX designer, cybersecurity engineer, and product strategist.
+
+Design, build, test, and document **Nexora Store**, a premium, cross-platform digital software application marketplace.
+
+Nexora Store enables users to discover software, explore product details, select a supported operating system, purchase software licenses, download authorized installers, and manage purchased applications.
+
+The supported platforms are:
+
+- macOS — DMG, PKG, and other verified distribution formats.
+- Windows — EXE, MSI, and other verified distribution formats.
+- Linux — AppImage, DEB, RPM, and other verified distribution formats.
+- Android — APK downloads or official Google Play listings.
+
+The store must display only verified, genuinely available builds for each application. Do not assume that every application supports all four operating systems.
+
+This is an application store, NOT a general shopping marketplace. Do not design it like Amazon, Flipkart, or a conventional retail catalog.
+
+The final product should feel like a sophisticated, trustworthy software ecosystem with an editorial discovery experience, excellent typography, polished interactions, and a professional account dashboard.
+
+Build a working full-stack application, not merely a static mockup.
+
+---
+
+# 1. PRODUCT VISION
+
+Brand name: Nexora Store
+
+Brand personality:
+- Premium
+- Minimal
+- Intelligent
+- Modern
+- Developer-friendly
+- Secure
+- Trustworthy
+- Technologically advanced
+
+Brand positioning:
+
+"Discover software that does more."
+
+Supporting message:
+
+"Exceptional applications for every platform. Discover, purchase, download, and manage your software in one place."
+
+Primary objective:
+
+Make discovering and obtaining software effortless, regardless of the user's operating system.
+
+Core user journey:
+
+Discover an application → Open its details → Check compatibility → Select an operating system and architecture → Choose a license or plan → Purchase if required → Verify entitlement → Access the correct installer → Manage the application in My Apps.
+
+---
+
+# 2. DESIGN SYSTEM AND VISUAL DIRECTION
+
+Create a distinctive premium visual system inspired by the restraint and clarity of Apple's software ecosystem, modern developer tools, and high-quality SaaS products. Do not copy Apple's exact interface, logos, or proprietary assets.
+
+## Color palette
+
+Use a sophisticated dark theme as the primary experience.
+
+- Main background: near-black charcoal.
+- Elevated surfaces: dark graphite.
+- Primary accent: electric violet.
+- Secondary accent: restrained electric blue.
+- Main typography: soft white.
+- Secondary typography: muted gray.
+- Borders: subtle neutral gray.
+- Success, warning, and error colors: accessible semantic colors.
+
+Use gradients sparingly. Reserve them for the hero, selected states, and occasional brand accents.
+
+Provide a carefully designed light theme with equivalent contrast and visual hierarchy.
+
+## Visual principles
+
+- Strong typographic hierarchy.
+- Generous negative space.
+- Consistent spacing and sizing tokens.
+- Large, recognizable application artwork.
+- Restrained glassmorphism.
+- Subtle shadows and elegant borders.
+- Carefully designed empty states.
+- Smooth transitions without excessive animation.
+- Consistent radii and button styles.
+- High contrast and accessible focus indicators.
+- Responsive layouts for desktop, tablet, and mobile.
+
+Use Lucide icons or another consistent professional icon library. Do not use emoji as application icons.
+
+Use authorized product artwork or clearly labeled placeholders. Optimize images and avoid unnecessary external dependencies.
+
+## Typography
+
+Use a contemporary, readable typeface such as Inter or Geist, with sensible fallbacks.
+
+Implement a reusable design system containing:
+- Colors and semantic tokens.
+- Typography scale.
+- Spacing scale.
+- Border radii.
+- Elevation and shadow tokens.
+- Buttons and form controls.
+- Product cards.
+- Dialogs and dropdowns.
+- Navigation patterns.
+- Loading skeletons.
+- Toast notifications.
+- Error and empty states.
+
+---
+
+# 3. APP-STORE-FIRST HOMEPAGE
+
+Build an exceptional homepage that prioritizes application discovery rather than shopping transactions.
+
+## Navigation
+
+Create a refined, responsive navigation bar with:
+
+- Nexora Store brand mark.
+- Discover.
+- Categories.
+- Updates.
+- My Apps.
+- Search.
+- Wishlist.
+- User profile.
+- Theme switcher.
+
+Keep navigation compact and intuitive. On mobile, use an elegant mobile navigation pattern.
+
+Show account-dependent actions appropriately. Guests should see Sign In, while authenticated users should see their profile and library.
+
+## Hero section
+
+Headline:
+
+"Discover software that does more."
+
+Supporting copy:
+
+"Powerful applications. Every platform. One place to discover what's next."
+
+Primary CTA: Explore Applications.
+
+Secondary CTA: Browse Categories.
+
+Include an editorially designed featured-application area with a large app icon or authorized artwork, a short description, platform availability, and a contextual action.
+
+The hero should feel premium and distinctive, not like a generic e-commerce banner.
+
+## Homepage content sections
+
+Build the following sections:
+
+1. Featured Application — editorial spotlight.
+2. Essential Apps — carefully curated applications.
+3. Trending Now — based on real engagement data or clearly labeled demo data.
+4. Explore by Category.
+5. Powerful Tools for Creators.
+6. Developer Essentials.
+7. AI and Productivity.
+8. Newly Released — ordered by publication date.
+9. Recently Updated — ordered by verified release date.
+10. Free Applications.
+11. Premium Applications.
+12. Available Across Your Devices — applications with verified multi-platform support.
+13. Discover Your Next Favorite App.
+14. Developer or publisher information.
+15. Newsletter signup, if a real email integration is configured.
+16. Professional footer with legal, privacy, licensing, and support links.
+
+Do not fabricate sales figures, popularity claims, ratings, or customer testimonials.
+
+Use sample data only when it is clearly labeled as demonstration content.
+
+---
+
+# 4. APPLICATION DISCOVERY AND SEARCH
+
+Create a fully functional application discovery page.
+
+## Search
+
+Implement:
+- Application name search.
+- Developer search.
+- Category search.
+- Description and feature search.
+- Search suggestions.
+- Debounced input.
+- Keyboard navigation.
+- Search result highlighting where appropriate.
+- Recent searches for signed-in users, if useful.
+- Helpful no-results states.
+
+Search must query the real application data source rather than simply filtering hardcoded homepage cards.
+
+## Filters
+
+Provide working filters for:
+
+- Operating system.
+- CPU architecture.
+- Category.
+- Free and paid.
+- Price range.
+- Rating, when genuine reviews exist.
+- Newest releases.
+- Recently updated.
+- Trial availability.
+- License type.
+- Verified compatibility.
+
+Implement sorting by relevance, newest, recently updated, price, and rating where applicable.
+
+Keep filters synchronized with URL query parameters so results can be bookmarked and shared.
+
+Support pagination or efficient incremental loading.
+
+---
+
+# 5. APPLICATION CATALOG AND PRODUCT CARDS
+
+Each application must be represented by a canonical application record.
+
+A product card should display:
+
+- Application icon.
+- Name.
+- Developer or publisher.
+- Short description.
+- Available platforms.
+- Price or Free label.
+- Genuine rating and review count, if available.
+- Latest verified version, when available.
+- A contextual action such as View App, Get, or Buy.
+
+Keep the cards visually focused on the software itself.
+
+Do not show misleading discount prices or invented review counts.
+
+Provide clear distinctions between:
+- Free software.
+- Paid software.
+- Free trials.
+- Subscription plans.
+- One-time purchases.
+- Official external store listings.
+- Direct downloadable installers.
+
+---
+
+# 6. CROSS-PLATFORM APPLICATION DETAILS
+
+This is one of Nexora Store's most important features.
+
+Every application has a dedicated details page and a platform selector.
+
+An application may have different installers, versions, architectures, licensing terms, and system requirements for different platforms.
+
+Never assume that one application automatically exists on macOS, Windows, Linux, and Android.
+
+## Platform selector
+
+Build polished, selectable platform cards for:
+
+- macOS.
+- Windows.
+- Linux.
+- Android.
+
+Display a platform only when a valid, verified build or supported official distribution route exists.
+
+Unsupported platforms must show a clear unavailable state rather than an invalid download button.
+
+## macOS compatibility
+
+Where supported, distinguish:
+
+- Intel x86_64.
+- Apple Silicon ARM64.
+- Universal binaries.
+
+Show minimum supported macOS version and other verified requirements.
+
+Support formats such as DMG and PKG where applicable.
+
+## Windows compatibility
+
+Show verified architecture and requirements, including x64 or ARM64 where supported.
+
+Support formats such as EXE and MSI.
+
+## Linux compatibility
+
+Show supported distributions, architectures, dependencies, and package types when known.
+
+Support formats such as AppImage, DEB, and RPM where available.
+
+## Android compatibility
+
+Show verified Android minimum version, architecture or package compatibility where applicable, application version, and file size.
+
+Use APK distribution only when the publisher authorizes it. Otherwise, link to the official Google Play listing.
+
+Clearly warn users when installing packages outside official app stores and provide appropriate publisher and integrity information.
+
+## Download panel
+
+After platform selection, display:
+
+- Selected platform.
+- Architecture.
+- Version.
+- Installer format.
+- File size.
+- Release date.
+- Minimum system requirements.
+- License requirements.
+- Publisher.
+- SHA-256 checksum, when available.
+- Digital signature or authenticity information, when available.
+- Download or purchase action.
+
+For paid applications, show the purchase CTA until the user has a verified entitlement.
+
+After successful purchase verification, show the authorized download action.
+
+Clearly distinguish:
+- Direct installer download.
+- External official download.
+- Developer-managed installer.
+- License-key delivery.
+- Subscription activation.
+
+Never invent download links, package files, compatibility claims, or checksums.
+
+---
+
+# 7. APPLICATION DETAIL PAGE
+
+Create a dedicated product page containing:
+
+- Large app artwork.
+- App name and publisher.
+- Clear overview.
+- Supported platforms.
+- Version and release date.
+- Screenshot gallery.
+- Video or preview media where available.
+- Feature highlights.
+- Detailed description.
+- System requirements.
+- Compatibility matrix.
+- Pricing and license options.
+- Trial availability.
+- Developer website and support.
+- Changelog and release notes.
+- Genuine customer reviews.
+- FAQ.
+- Related applications.
+- Report an issue action.
+
+Keep the primary action visible without making the page cluttered.
+
+The selected platform and its actual availability must determine the download or purchase action.
+
+---
+
+# 8. USER ACCOUNTS AND AUTHENTICATION
+
+Implement a secure authentication system with:
+
+- Registration.
+- Login.
+- Logout.
+- Email verification where supported.
+- Password reset.
+- User profile.
+- Account settings.
+- Session management.
+- Optional OAuth providers if configured.
+
+Use a reputable authentication provider or securely implemented server-side sessions.
+
+If using cookie-based sessions:
+- Use HttpOnly cookies.
+- Use Secure cookies in production.
+- Configure an appropriate SameSite policy.
+- Protect state-changing requests against CSRF.
+- Rotate sessions after authentication.
+- Expire sessions appropriately.
+- Rate-limit login and recovery endpoints.
+
+Never store plaintext passwords or sensitive session tokens in browser local storage.
+
+Use server-side authorization for every protected resource.
+
+---
+
+# 9. MY APPS — PERSONAL SOFTWARE LIBRARY
+
+Build a polished dashboard called My Apps.
+
+It should show:
+- Purchased applications.
+- Free applications added to the library, where supported.
+- Available downloads.
+- Installed-version information only when an actual integration provides it.
+- New version notifications.
+- License status.
+- Activation instructions.
+- Purchase dates.
+- Download history.
+- Device activation details where supported.
+- Subscription status where applicable.
+
+Include search, sorting, platform filtering, and useful empty states.
+
+Do not claim that Nexora can detect software installed on a user's computer unless a real, explicitly authorized desktop integration exists.
+
+Protect every download and license retrieval with server-side ownership and entitlement checks.
+
+---
+
+# 10. WISHLIST, ORDERS, AND RECEIPTS
+
+Implement:
+
+- Add or remove applications from a wishlist.
+- Persist the wishlist for authenticated users.
+- View previous orders.
+- View order details.
+- Access receipts and invoices where supported.
+- View payment status.
+- View refund requests and outcomes.
+- Access valid licenses and authorized downloads.
+
+Keep financial records immutable where appropriate and record status changes as separate events.
+
+Do not treat a frontend success screen as proof of payment.
+
+---
+
+# 11. CART AND SECURE CHECKOUT
+
+Although Nexora is app-store-first rather than retail-first, provide a lightweight cart for products requiring payment.
+
+For applications with a one-time purchase, subscription, or multiple license options, display the relevant plan selection.
+
+Support:
+- Add to cart.
+- Remove from cart.
+- License or plan selection.
+- Valid discount codes.
+- Subtotal.
+- Applicable taxes when correctly configured.
+- Final amount.
+- Payment status.
+- Order confirmation.
+
+Use a supported payment provider such as Razorpay for India or Stripe where the merchant account and business are eligible.
+
+Start in test mode.
+
+## Payment security
+
+- Create payment sessions or orders on the server.
+- Calculate prices using trusted database records.
+- Never trust client-submitted prices.
+- Verify provider signatures and payment status on the server.
+- Verify signed webhooks.
+- Handle duplicate events idempotently.
+- Prevent duplicate order fulfillment.
+- Handle failed, cancelled, pending, and refunded transactions.
+- Record provider references and transaction state.
+- Release licenses and protected downloads only after verified payment and entitlement checks.
+
+Never store raw card details.
+
+Do not simulate a successful production payment or represent a test transaction as real money received.
+
+---
+
+# 12. DATABASE AND DATA MODEL
+
+Use PostgreSQL with migrations, constraints, and appropriate indexes.
+
+Design normalized tables for:
+
+- users or authentication-provider references.
+- user_profiles.
+- applications.
+- developers.
+- categories.
+- application_categories.
+- application_media.
+- application_builds.
+- platform_compatibility.
+- license_plans.
+- licenses.
+- license_activations.
+- wishlists.
+- wishlist_items.
+- carts.
+- cart_items.
+- orders.
+- order_items.
+- payments.
+- payment_webhook_events.
+- download_entitlements.
+- download_events.
+- reviews.
+- support_tickets.
+- notifications.
+- audit_logs.
+
+Include timestamps, foreign keys, unique constraints, and sensible deletion policies.
+
+## Important data relationships
+
+One application can have many builds.
+
+Each build belongs to a specific application and describes a supported platform, architecture, version, installer type, and release status.
+
+Each application can have multiple license plans.
+
+An order contains purchased license plans or application entitlements.
+
+A verified purchase creates the appropriate entitlement, not an unrestricted public download link.
+
+License keys must be stored securely and never exposed in logs or analytics.
+
+Use transactions when creating orders, recording payments, allocating license inventory, and fulfilling entitlements.
+
+Do not store actual installers as database blobs. Store metadata and authorized object-storage references.
+
+---
+
+# 13. BACKEND API AND ARCHITECTURE
+
+Use a maintainable backend with validated API contracts and centralized error handling.
+
+Suggested API groups:
+
+Public:
+- GET /api/apps
+- GET /api/apps/:slug
+- GET /api/categories
+- GET /api/search
+- GET /api/apps/:slug/builds
+
+Authentication:
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/logout
+- POST /api/auth/forgot-password
+- POST /api/auth/reset-password
+
+User:
+- GET /api/me
+- GET /api/library
+- GET /api/orders
+- GET /api/orders/:id
+- GET /api/wishlist
+- POST /api/wishlist/:appId
+- DELETE /api/wishlist/:appId
+
+Cart and checkout:
+- GET /api/cart
+- POST /api/cart/items
+- PATCH /api/cart/items/:id
+- DELETE /api/cart/items/:id
+- POST /api/checkout/session
+- GET /api/checkout/status/:id
+
+Downloads:
+- POST /api/downloads/:buildId/authorize
+- GET /api/downloads/:buildId/status
+
+Reviews and support:
+- POST /api/apps/:appId/reviews
+- POST /api/support/tickets
+
+Admin:
+- /api/admin/apps
+- /api/admin/builds
+- /api/admin/categories
+- /api/admin/orders
+- /api/admin/users
+- /api/admin/licenses
+- /api/admin/refunds
+- /api/admin/analytics
+
+These are proposed API contracts. Implement only routes that are properly secured and backed by real functionality.
+
+Use consistent response formats, appropriate HTTP status codes, request validation, authorization middleware, and documented error codes.
+
+Do not expose internal stack traces or secrets in API responses.
+
+---
+
+# 14. SECURE DOWNLOAD INFRASTRUCTURE
+
+Build a secure download authorization workflow.
+
+1. The user selects a valid application build.
+2. The server verifies that the build is published and available.
+3. The server checks whether the application is free or requires a purchase.
+4. For paid products, the server verifies the user's entitlement.
+5. The server issues a short-lived signed object-storage URL or securely proxies the download.
+6. The system records a download event without logging secrets.
+7. The URL expires according to configured policy.
+
+Use private storage for paid installers.
+
+Never expose permanent private storage URLs or unrestricted installer directories.
+
+Verify uploaded file types, file size, checksums, and publisher authorization.
+
+Use malware scanning where available.
+
+Do not distribute cracked software, pirated applications, unauthorized license keys, or modified installers without permission.
+
+---
+
+# 15. ADMIN DASHBOARD
+
+Create a separate, professional administration interface.
+
+Require authenticated administrator privileges enforced by the server.
+
+Include:
+
+- Overview.
+- Applications.
+- Developers.
+- Categories.
+- Application builds.
+- Platform compatibility.
+- Pricing and license plans.
+- License inventory.
+- Orders and payments.
+- Refund management.
+- User management.
+- Support requests.
+- Reviews and reports.
+- Basic analytics.
+- Audit logs.
+- Application publication workflow.
+
+Administrators must be able to:
+- Create and edit application records.
+- Upload authorized artwork.
+- Add builds for each supported platform.
+- Specify architecture and system requirements.
+- Upload or register authorized installers.
+- Manage release notes.
+- Publish, archive, or retire builds.
+- Configure license plans.
+- View order and entitlement states.
+- Review support and refund requests.
+
+Implement role-based access control with least privilege.
+
+Do not grant admin privileges through a public URL, a client-side flag, or a user-editable database field.
+
+Use an authorized server-side bootstrap process for the initial administrator.
+
+Log sensitive administrative actions.
+
+---
+
+# 16. TECHNOLOGY STACK
+
+Preferred stack:
+
+Frontend:
+- React.
+- TypeScript.
+- Vite or an appropriate full-stack framework.
+- Tailwind CSS.
+- Accessible reusable UI components.
+- Lucide icons.
+- A robust client-side routing solution.
+
+Backend:
+- Node.js.
+- Express with TypeScript, or an equivalent integrated backend.
+
+Database:
+- PostgreSQL.
+- Prisma or Drizzle ORM.
+- Versioned database migrations.
+- Seed scripts for development data.
+
+Validation:
+- Zod or a comparable schema-validation library.
+
+Storage:
+- Private S3-compatible object storage or an equivalent managed service.
+- Signed URLs for authorized downloads.
+
+Authentication:
+- A reputable provider or secure server-side session implementation.
+
+Payments:
+- Razorpay or Stripe in test mode initially.
+
+Testing:
+- Unit tests.
+- API integration tests.
+- End-to-end tests using Playwright or an equivalent tool.
+
+Deployment:
+- Replit-supported hosting and database integrations, or a compatible deployment platform.
+
+Use the simplest architecture that supports the requirements reliably. Avoid unnecessary microservices.
+
+If the selected platform requires a different stack, explain the trade-offs and preserve the security and product requirements.
+
+---
+
+# 17. PRIVACY, LEGAL, AND TRUST
+
+Create pages for:
+
+- Privacy Policy.
+- Terms of Service.
+- Refund Policy.
+- Software Licensing.
+- Download Safety.
+- Contact and Support.
+
+Clearly distinguish Nexora's role as a distributor from the original software publisher's role.
+
+Display developer attribution and licensing terms accurately.
+
+Do not claim to be an authorized reseller without actual authorization.
+
+Configure appropriate privacy notices, data retention, consent, and tax handling for the jurisdictions in which the business operates.
+
+Use legal templates only as starting points and flag policies that require professional review.
+
+---
+
+# 18. PERFORMANCE, ACCESSIBILITY, AND SEO
+
+Performance:
+- Lazy-load below-the-fold imagery.
+- Use optimized image formats.
+- Avoid unnecessary JavaScript.
+- Cache public catalog responses appropriately.
+- Paginate large datasets.
+- Add database indexes for frequent queries.
+- Use skeleton loading states.
+- Prevent duplicate network requests where practical.
+
+Accessibility:
+- Semantic HTML.
+- Keyboard navigation.
+- Visible focus states.
+- Accessible labels and form errors.
+- Sufficient color contrast.
+- Screen-reader support.
+- Reduced-motion support.
+
+SEO:
+- Descriptive page titles.
+- Unique meta descriptions.
+- Canonical URLs.
+- Open Graph metadata.
+- Sitemap and robots configuration.
+- Structured data only when the underlying information is accurate.
+- Indexable public application pages.
+
+Keep private library, account, checkout, and admin content protected from public indexing.
+
+---
+
+# 19. REQUIRED ROUTES
+
+Build and test the following pages:
+
+- /
+- /discover
+- /categories
+- /categories/:slug
+- /apps
+- /apps/:slug
+- /deals
+- /free-apps
+- /updates
+- /cart
+- /checkout
+- /checkout/success
+- /checkout/cancelled
+- /login
+- /register
+- /forgot-password
+- /reset-password
+- /library
+- /orders
+- /orders/:id
+- /wishlist
+- /account
+- /support
+- /privacy
+- /terms
+- /refund-policy
+- /licensing
+- /admin
+
+Implement additional routes for developers, legal details, or download flows when needed.
+
+Every visible navigation element must either work or be clearly marked as unavailable in the current demo.
+
+Do not create dead links or buttons that merely look functional.
+
+---
+
+# 20. SAMPLE DATA AND DEMONSTRATION MODE
+
+Seed the development database with realistic, clearly labeled sample records.
+
+Use a small, curated catalog spanning creative software, developer tools, productivity, security, utilities, and AI applications.
+
+For real applications, use accurate publisher information and verified public product information. Do not imply that Nexora has distribution rights unless those rights have been established.
+
+For unavailable data, use explicit demo records rather than invented claims.
+
+Include examples of:
+- A free application.
+- A paid application.
+- An application with multiple platform builds.
+- An application available on only one platform.
+- A product with a trial.
+- An application with no available download yet.
+
+Clearly distinguish demonstration payments from real transactions.
+
+Do not fabricate customer reviews, verified-purchase badges, download counts, or sales analytics.
+
+---
+
+# 21. IMPLEMENTATION WORKFLOW
+
+Work in small, testable stages.
+
+## Phase 1 — Foundation and visual design
+
+Create:
+- Project structure.
+- Design tokens.
+- Typography.
+- Responsive navigation.
+- Homepage.
+- Application cards.
+- Categories.
+- Footer.
+- Light and dark themes.
+
+Start the application and verify the homepage visually at desktop, tablet, and mobile widths.
+
+## Phase 2 — Discovery
+
+Implement:
+- Catalog data model.
+- Search.
+- Filters.
+- Sorting.
+- Pagination.
+- Category pages.
+- Product details.
+- Platform and architecture selectors.
+
+Verify that unsupported platforms never produce invalid download actions.
+
+## Phase 3 — Backend and database
+
+Implement:
+- PostgreSQL connection.
+- Database schema and migrations.
+- Seed data.
+- API validation.
+- Error handling.
+- Authentication.
+- Protected routes.
+- User profiles.
+
+## Phase 4 — Library and wishlist
+
+Implement:
+- User library.
+- Purchase history.
+- Wishlist.
+- Entitlement-aware UI.
+- License status.
+- Update notifications.
+
+## Phase 5 — Checkout
+
+Implement:
+- Cart.
+- Pricing validation.
+- Test-mode payment provider.
+- Signed webhook verification.
+- Idempotent payment processing.
+- Order confirmation.
+- Entitlement creation.
+
+## Phase 6 — Download authorization
+
+Implement:
+- Platform-specific builds.
+- Private storage.
+- Entitlement checks.
+- Expiring download links.
+- Download history.
+- File integrity metadata.
+
+## Phase 7 — Administration
+
+Implement:
+- Protected admin access.
+- Product and build management.
+- License inventory.
+- Order management.
+- Support tools.
+- Audit logs.
+
+## Phase 8 — Verification and deployment
+
+Run:
+- TypeScript checks.
+- Linting.
+- Unit tests.
+- API integration tests.
+- End-to-end tests.
+- Responsive UI checks.
+- Authorization tests.
+- Checkout and webhook tests.
+- Download access-control tests.
+
+Fix discovered errors before moving to the next phase.
+
+Provide a README containing setup instructions, architecture, environment variables, migrations, seed commands, testing, and deployment guidance.
+
+---
+
+# 22. ENVIRONMENT AND CONFIGURATION
+
+Provide an `.env.example` with placeholders for required configuration, such as:
+
+- DATABASE_URL
+- SESSION_SECRET
+- AUTH_PROVIDER credentials, if applicable
+- PAYMENT_PROVIDER keys
+- PAYMENT_WEBHOOK_SECRET
+- OBJECT_STORAGE credentials
+- EMAIL_PROVIDER configuration, if used
+- APPLICATION_BASE_URL
+
+Never commit real credentials.
+
+Validate required environment variables at server startup and fail safely when required production configuration is missing.
+
+Do not silently switch to insecure authentication or simulated production payments.
+
+Provide a documented development mode with explicit demo behavior.
+
+---
+
+# 23. DEFINITION OF DONE
+
+The project is not complete merely because the homepage renders.
+
+Completion requires:
+
+1. A premium, responsive App Store-style interface.
+2. Functional catalog search, filters, and sorting.
+3. Working application details and platform selectors.
+4. Accurate platform-specific build metadata.
+5. Secure authentication and protected user routes.
+6. A functional database-backed wishlist and library.
+7. Server-validated cart and pricing.
+8. Test-mode checkout with verified webhooks.
+9. Idempotent order fulfillment.
+10. Protected downloads and license retrieval.
+11. Server-enforced administrator permissions.
+12. Useful loading, error, and empty states.
+13. Automated tests for the main purchase and download workflows.
+14. Setup and deployment documentation.
+15. No fake production payment success, invented installers, or misleading compatibility claims.
+
+If a feature requires credentials, publisher authorization, external infrastructure, or a real distribution agreement, implement its appropriate integration boundary and document exactly what remains.
+
+Do not claim that an external integration is working until it has been configured and tested.
+
+---
+
+# FINAL INSTRUCTION
+
+Start by building the complete visual foundation and a genuinely premium homepage.
+
+Then continue through the phases in order, maintaining a working application throughout.
+
+Make sensible implementation decisions without repeatedly asking for approval on routine technical details.
+
+Prioritize excellent design, accurate cross-platform compatibility, secure distribution, maintainable code, and a trustworthy user experience.
+
+Deliver a polished, functioning software app store — not an Amazon-style retail website, not a static landing page, and not a collection of disconnected mockups.
+
+The result should feel like a premium digital home for software across macOS, Windows, Linux, and Android.

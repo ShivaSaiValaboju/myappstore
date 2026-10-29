@@ -1,0 +1,6 @@
+{
+  "name": "SAHRIVA Store",
+  "description": "Premium cross-platform digital software marketplace for macOS, Windows, Linux, and Android. Engineered and curated by Shiva Sai Valaboju.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
