@@ -1,10 +1,21 @@
 /**
- * Server database layer with disk persistence (data/nexora-store.json)
- * and rich authentic seed data for cross-platform applications.
+ * Server database layer backed by Netlify Database (Postgres via Drizzle),
+ * with rich authentic seed data for cross-platform applications.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import { and, asc, count, desc, eq, lt, or } from 'drizzle-orm';
+import { database } from '../../db';
+import {
+  applications,
+  categories,
+  downloadTokens,
+  entitlements,
+  orders,
+  reviews,
+  tickets,
+  users,
+  wishlists,
+} from '../../db/schema';
 import type {
   ApplicationRecord,
   StoreCategory,
@@ -14,20 +25,6 @@ import type {
   SupportTicket,
   ApplicationReview,
 } from '../types/store';
-
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'nexora-store.json');
-
-export interface DatabaseSchema {
-  categories: StoreCategory[];
-  applications: ApplicationRecord[];
-  users: (UserProfile & { passwordHash: string })[];
-  entitlements: Entitlement[];
-  orders: OrderRecord[];
-  wishlists: Record<string, string[]>; // userId -> appId[]
-  reviews: ApplicationReview[];
-  tickets: SupportTicket[];
-}
 
 // Initial seed categories
 const SEED_CATEGORIES: StoreCategory[] = [
@@ -1224,66 +1221,99 @@ const SEED_ORDERS: OrderRecord[] = [
 ];
 
 class DatabaseService {
-  private data: DatabaseSchema;
+  private seeding: Promise<void> | null = null;
 
-  constructor() {
-    this.data = this.loadOrInit();
+  /**
+   * Populates an empty database with the seed catalog on first use.
+   * Inserts ignore conflicts so concurrent cold starts can't duplicate rows.
+   */
+  private ensureSeeded(): Promise<void> {
+    if (!this.seeding) {
+      this.seeding = this.seed().catch((err) => {
+        this.seeding = null;
+        throw err;
+      });
+    }
+    return this.seeding;
   }
 
-  private loadOrInit(): DatabaseSchema {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      if (fs.existsSync(DB_FILE)) {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(raw);
-      }
-    } catch (err) {
-      console.warn('Could not read existing store DB, re-seeding:', err);
-    }
+  private async seed() {
+    const existing = await database.select({ id: categories.id }).from(categories).limit(1);
+    if (existing.length > 0) return;
 
-    const initial: DatabaseSchema = {
-      categories: SEED_CATEGORIES,
-      applications: SEED_APPLICATIONS,
-      users: SEED_USERS,
-      entitlements: SEED_ENTITLEMENTS,
-      orders: SEED_ORDERS,
-      wishlists: {
-        'user-demo-1': ['app-pixelforge', 'app-vortex-db'],
-      },
-      reviews: SEED_REVIEWS,
-      tickets: [],
-    };
-    this.persist(initial);
-    return initial;
-  }
-
-  private persist(dataToSave?: DatabaseSchema) {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave || this.data, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to persist database:', err);
-    }
+    await database
+      .insert(categories)
+      .values(SEED_CATEGORIES.map((c, i) => ({ id: c.id, position: i, data: c })))
+      .onConflictDoNothing();
+    await database
+      .insert(applications)
+      .values(SEED_APPLICATIONS.map((a, i) => ({ id: a.id, slug: a.slug, position: i, data: a })))
+      .onConflictDoNothing();
+    await database
+      .insert(users)
+      .values(
+        SEED_USERS.map(({ passwordHash, ...profile }) => ({
+          id: profile.id,
+          email: profile.email.toLowerCase(),
+          passwordHash,
+          data: profile,
+        }))
+      )
+      .onConflictDoNothing();
+    await database
+      .insert(entitlements)
+      .values(SEED_ENTITLEMENTS.map((e) => ({ id: e.id, userId: e.userId, appId: e.appId, data: e })))
+      .onConflictDoNothing();
+    await database
+      .insert(orders)
+      .values(
+        SEED_ORDERS.map((o) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          userId: o.userId,
+          createdAt: new Date(o.createdAt),
+          data: o,
+        }))
+      )
+      .onConflictDoNothing();
+    await database
+      .insert(wishlists)
+      .values([
+        { userId: 'user-demo-1', appId: 'app-pixelforge' },
+        { userId: 'user-demo-1', appId: 'app-vortex-db' },
+      ])
+      .onConflictDoNothing();
+    await database
+      .insert(reviews)
+      .values(
+        SEED_REVIEWS.map((r) => ({
+          id: r.id,
+          appId: r.appId,
+          createdAt: new Date(r.date),
+          data: r,
+        }))
+      )
+      .onConflictDoNothing();
   }
 
   // --- Categories ---
-  getCategories(): StoreCategory[] {
-    return this.data.categories;
+  async getCategories(): Promise<StoreCategory[]> {
+    await this.ensureSeeded();
+    const rows = await database.select().from(categories).orderBy(asc(categories.position));
+    return rows.map((r) => r.data);
   }
 
   // --- Applications ---
-  getApplications(filter?: {
+  async getApplications(filter?: {
     platform?: string;
     category?: string;
     search?: string;
     freeOnly?: boolean;
     sort?: string;
-  }): ApplicationRecord[] {
-    let list = [...this.data.applications];
+  }): Promise<ApplicationRecord[]> {
+    await this.ensureSeeded();
+    const rows = await database.select().from(applications).orderBy(asc(applications.position));
+    let list = rows.map((r) => r.data);
 
     if (filter?.platform) {
       const p = filter.platform.toLowerCase();
@@ -1328,147 +1358,228 @@ class DatabaseService {
     return list;
   }
 
-  getApplicationBySlug(slug: string): ApplicationRecord | undefined {
-    return this.data.applications.find(
-      (a) => a.slug === slug || a.id === slug
-    );
+  async getApplicationBySlug(slug: string): Promise<ApplicationRecord | undefined> {
+    await this.ensureSeeded();
+    const [row] = await database
+      .select()
+      .from(applications)
+      .where(or(eq(applications.slug, slug), eq(applications.id, slug)))
+      .limit(1);
+    return row?.data;
   }
 
   // --- Users & Auth ---
-  getUserById(id: string): UserProfile | undefined {
-    const u = this.data.users.find((user) => user.id === id);
-    if (!u) return undefined;
-    const { passwordHash, ...profile } = u;
-    return profile;
+  async getUserById(id: string): Promise<UserProfile | undefined> {
+    await this.ensureSeeded();
+    const [row] = await database.select().from(users).where(eq(users.id, id)).limit(1);
+    return row?.data;
   }
 
-  getUserByEmail(email: string): (UserProfile & { passwordHash: string }) | undefined {
-    return this.data.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  async getUserByEmail(email: string): Promise<(UserProfile & { passwordHash: string }) | undefined> {
+    await this.ensureSeeded();
+    const [row] = await database
+      .select()
+      .from(users)
+      .where(eq(users.email, email.trim().toLowerCase()))
+      .limit(1);
+    return row ? { ...row.data, passwordHash: row.passwordHash } : undefined;
   }
 
-  createUser(name: string, email: string, passwordHash: string): UserProfile {
-    const newUser = {
+  async createUser(name: string, email: string, passwordHash: string): Promise<UserProfile> {
+    const profile: UserProfile = {
       id: `user-${Date.now()}`,
       name,
       email,
-      role: 'user' as const,
+      role: 'user',
       createdAt: new Date().toISOString(),
-      passwordHash,
     };
-    this.data.users.push(newUser);
-    this.persist();
-    const { passwordHash: _, ...profile } = newUser;
+    await database.insert(users).values({
+      id: profile.id,
+      email: email.trim().toLowerCase(),
+      passwordHash,
+      data: profile,
+    });
     return profile;
   }
 
   // --- Entitlements & Library ---
-  getUserEntitlements(userId: string): Entitlement[] {
-    return this.data.entitlements.filter((e) => e.userId === userId && e.status === 'active');
+  async getUserEntitlements(userId: string): Promise<Entitlement[]> {
+    await this.ensureSeeded();
+    const rows = await database.select().from(entitlements).where(eq(entitlements.userId, userId));
+    return rows.map((r) => r.data).filter((e) => e.status === 'active');
   }
 
-  addEntitlement(entitlement: Entitlement) {
-    this.data.entitlements.push(entitlement);
-    this.persist();
+  async addEntitlement(entitlement: Entitlement) {
+    await database.insert(entitlements).values({
+      id: entitlement.id,
+      userId: entitlement.userId,
+      appId: entitlement.appId,
+      data: entitlement,
+    });
   }
 
-  recordDownload(userId: string, buildId: string) {
-    const ent = this.data.entitlements.find(
-      (e) => e.userId === userId && e.status === 'active'
-    );
+  async updateEntitlement(entitlement: Entitlement) {
+    await database
+      .update(entitlements)
+      .set({ data: entitlement })
+      .where(eq(entitlements.id, entitlement.id));
+  }
+
+  async recordDownload(userId: string, appId: string, buildId: string) {
+    const ent = (await this.getUserEntitlements(userId)).find((e) => e.appId === appId);
     if (ent) {
       ent.lastDownloadedAt = new Date().toISOString();
       ent.lastDownloadedBuildId = buildId;
-      this.persist();
+      await this.updateEntitlement(ent);
     }
   }
 
   // --- Orders ---
-  getUserOrders(userId: string): OrderRecord[] {
-    return this.data.orders.filter((o) => o.userId === userId);
+  async getUserOrders(userId: string): Promise<OrderRecord[]> {
+    await this.ensureSeeded();
+    const rows = await database
+      .select()
+      .from(orders)
+      .where(eq(orders.userId, userId))
+      .orderBy(desc(orders.createdAt));
+    return rows.map((r) => r.data);
   }
 
-  getOrderById(id: string): OrderRecord | undefined {
-    return this.data.orders.find((o) => o.id === id || o.orderNumber === id);
+  async getOrderById(id: string): Promise<OrderRecord | undefined> {
+    await this.ensureSeeded();
+    const [row] = await database
+      .select()
+      .from(orders)
+      .where(or(eq(orders.id, id), eq(orders.orderNumber, id)))
+      .limit(1);
+    return row?.data;
   }
 
-  createOrder(order: OrderRecord) {
-    this.data.orders.unshift(order);
-    this.persist();
+  async createOrder(order: OrderRecord) {
+    await database.insert(orders).values({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      userId: order.userId,
+      createdAt: new Date(order.createdAt),
+      data: order,
+    });
   }
 
   // --- Wishlist ---
-  getUserWishlist(userId: string): string[] {
-    return this.data.wishlists[userId] || [];
+  async getUserWishlist(userId: string): Promise<string[]> {
+    await this.ensureSeeded();
+    const rows = await database
+      .select()
+      .from(wishlists)
+      .where(eq(wishlists.userId, userId))
+      .orderBy(asc(wishlists.createdAt));
+    return rows.map((r) => r.appId);
   }
 
-  toggleWishlist(userId: string, appId: string): string[] {
-    const list = this.data.wishlists[userId] || [];
-    const index = list.indexOf(appId);
-    if (index >= 0) {
-      list.splice(index, 1);
-    } else {
-      list.push(appId);
+  async toggleWishlist(userId: string, appId: string): Promise<string[]> {
+    const removed = await database
+      .delete(wishlists)
+      .where(and(eq(wishlists.userId, userId), eq(wishlists.appId, appId)))
+      .returning();
+    if (removed.length === 0) {
+      await database.insert(wishlists).values({ userId, appId }).onConflictDoNothing();
     }
-    this.data.wishlists[userId] = list;
-    this.persist();
-    return list;
+    return this.getUserWishlist(userId);
   }
 
   // --- Reviews ---
-  getReviewsForApp(appId: string): ApplicationReview[] {
-    return this.data.reviews.filter((r) => r.appId === appId);
+  async getReviewsForApp(appId: string): Promise<ApplicationReview[]> {
+    await this.ensureSeeded();
+    const rows = await database
+      .select()
+      .from(reviews)
+      .where(eq(reviews.appId, appId))
+      .orderBy(desc(reviews.createdAt));
+    return rows.map((r) => r.data);
   }
 
-  addReview(review: ApplicationReview) {
-    this.data.reviews.unshift(review);
+  async addReview(review: ApplicationReview) {
+    await database.insert(reviews).values({ id: review.id, appId: review.appId, data: review });
     // recalculate app average
-    const app = this.data.applications.find((a) => a.id === review.appId);
+    const app = await this.getApplicationBySlug(review.appId);
     if (app) {
-      const appRevs = this.getReviewsForApp(app.id);
+      const appRevs = await this.getReviewsForApp(app.id);
       const sum = appRevs.reduce((acc, r) => acc + r.rating, 0);
-      app.rating = Math.round((sum / appRevs.length) * 10) / 10;
-      app.reviewCount = appRevs.length;
+      await this.updateApplication(app.id, {
+        rating: Math.round((sum / appRevs.length) * 10) / 10,
+        reviewCount: appRevs.length,
+      });
     }
-    this.persist();
   }
 
   // --- Support Tickets ---
-  createTicket(ticket: SupportTicket) {
-    this.data.tickets.unshift(ticket);
-    this.persist();
+  async createTicket(ticket: SupportTicket) {
+    await database.insert(tickets).values({ id: ticket.id, data: ticket });
   }
 
-  getTickets(): SupportTicket[] {
-    return this.data.tickets;
+  async getTickets(): Promise<SupportTicket[]> {
+    const rows = await database.select().from(tickets).orderBy(desc(tickets.createdAt));
+    return rows.map((r) => r.data);
   }
 
   // --- Admin ---
-  getAllOrders(): OrderRecord[] {
-    return this.data.orders;
+  async getAllOrders(): Promise<OrderRecord[]> {
+    await this.ensureSeeded();
+    const rows = await database.select().from(orders).orderBy(desc(orders.createdAt));
+    return rows.map((r) => r.data);
   }
 
-  addApplication(app: ApplicationRecord) {
-    this.data.applications.push(app);
-    this.persist();
+  async addApplication(app: ApplicationRecord) {
+    await this.ensureSeeded();
+    const [{ value }] = await database.select({ value: count() }).from(applications);
+    await database
+      .insert(applications)
+      .values({ id: app.id, slug: app.slug, position: Number(value), data: app });
   }
 
-  updateApplication(id: string, updates: Partial<ApplicationRecord>) {
-    const idx = this.data.applications.findIndex((a) => a.id === id);
-    if (idx >= 0) {
-      this.data.applications[idx] = { ...this.data.applications[idx], ...updates };
-      this.persist();
-    }
-  }
-
-  addBuild(appId: string, build: any) {
-    const app = this.data.applications.find((a) => a.id === appId);
+  async updateApplication(id: string, updates: Partial<ApplicationRecord>) {
+    const app = await this.getApplicationBySlug(id);
     if (app) {
-      app.builds.push(build);
-      if (!app.supportedPlatforms.includes(build.platform)) {
-        app.supportedPlatforms.push(build.platform);
-      }
-      this.persist();
+      const updated = { ...app, ...updates };
+      await database
+        .update(applications)
+        .set({ slug: updated.slug, data: updated })
+        .where(eq(applications.id, app.id));
     }
+  }
+
+  async addBuild(appId: string, build: any) {
+    const app = await this.getApplicationBySlug(appId);
+    if (app) {
+      const supportedPlatforms = app.supportedPlatforms.includes(build.platform)
+        ? app.supportedPlatforms
+        : [...app.supportedPlatforms, build.platform];
+      await this.updateApplication(app.id, { builds: [...app.builds, build], supportedPlatforms });
+    }
+  }
+
+  // --- Signed download tokens ---
+  async createDownloadToken(
+    token: string,
+    expiresAt: number,
+    data: typeof downloadTokens.$inferInsert.data
+  ) {
+    // Opportunistically clear expired links
+    await database.delete(downloadTokens).where(lt(downloadTokens.expiresAt, Date.now()));
+    await database.insert(downloadTokens).values({ token, expiresAt, data });
+  }
+
+  async getDownloadToken(token: string) {
+    const [row] = await database
+      .select()
+      .from(downloadTokens)
+      .where(eq(downloadTokens.token, token))
+      .limit(1);
+    return row ? { ...row.data, expiresAt: row.expiresAt } : undefined;
+  }
+
+  async deleteDownloadToken(token: string) {
+    await database.delete(downloadTokens).where(eq(downloadTokens.token, token));
   }
 }
 

@@ -2,7 +2,7 @@
  * Express API routes for Nexora Store
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import { db } from './db';
 import {
@@ -16,51 +16,41 @@ import type {
   OrderRecord,
   Entitlement,
   DownloadAuthorization,
-  PlatformId,
 } from '../types/store';
 
 export const apiRouter = Router();
 
-// In-memory token store for signed downloads (token -> metadata)
-const signedDownloadTokens = new Map<
-  string,
-  {
-    appId: string;
-    buildId: string;
-    userId?: string;
-    expiresAt: number;
-    filename: string;
-    fileSizeBytes: number;
-    sha256Checksum: string;
-    platform: PlatformId;
-    version: string;
-  }
->();
+// Express 4 doesn't catch rejected promises, so forward async errors to the error handler
+function asyncRoute(handler: (req: Request, res: Response) => Promise<unknown>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    handler(req, res).catch(next);
+  };
+}
 
 // Helper to extract demo user from Authorization or session header
-function getAuthUser(req: Request) {
+async function getAuthUser(req: Request) {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
+  if (!authHeader) return undefined;
   const token = authHeader.replace(/^Bearer\s+/, '').trim();
   // Simple token resolution for demo: "user-demo-1" or "user-admin-1" or "usr_<id>"
   if (token.startsWith('usr_')) {
     const id = token.replace('usr_', '');
-    return db.getUserById(id);
+    return await db.getUserById(id);
   }
-  return db.getUserById(token);
+  return await db.getUserById(token);
 }
 
 // ----------------------------------------------------
 // Public Catalog Routes
 // ----------------------------------------------------
 
-apiRouter.get('/categories', (_req: Request, res: Response) => {
-  res.json(db.getCategories());
-});
+apiRouter.get('/categories', asyncRoute(async (_req: Request, res: Response) => {
+  res.json(await db.getCategories());
+}));
 
-apiRouter.get('/apps', (req: Request, res: Response) => {
+apiRouter.get('/apps', asyncRoute(async (req: Request, res: Response) => {
   const { platform, category, search, freeOnly, sort } = req.query;
-  const apps = db.getApplications({
+  const apps = await db.getApplications({
     platform: platform as string,
     category: category as string,
     search: search as string,
@@ -68,37 +58,37 @@ apiRouter.get('/apps', (req: Request, res: Response) => {
     sort: sort as string,
   });
   res.json(apps);
-});
+}));
 
-apiRouter.get('/apps/:slug', (req: Request, res: Response) => {
-  const app = db.getApplicationBySlug(req.params.slug);
+apiRouter.get('/apps/:slug', asyncRoute(async (req: Request, res: Response) => {
+  const app = await db.getApplicationBySlug(req.params.slug);
   if (!app) {
     return res.status(404).json({ error: 'Application not found' });
   }
-  const reviews = db.getReviewsForApp(app.id);
+  const reviews = await db.getReviewsForApp(app.id);
   res.json({ ...app, reviews });
-});
+}));
 
-apiRouter.get('/search', (req: Request, res: Response) => {
+apiRouter.get('/search', asyncRoute(async (req: Request, res: Response) => {
   const q = (req.query.q as string) || '';
   if (!q.trim()) {
     return res.json([]);
   }
-  const results = db.getApplications({ search: q });
+  const results = await db.getApplications({ search: q });
   res.json(results);
-});
+}));
 
 // ----------------------------------------------------
 // Authentication Routes
 // ----------------------------------------------------
 
-apiRouter.post('/auth/login', (req: Request, res: Response) => {
+apiRouter.post('/auth/login', asyncRoute(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  const user = db.getUserByEmail(email);
+  const user = await db.getUserByEmail(email);
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
@@ -107,64 +97,66 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   const token = `usr_${user.id}`;
   const { passwordHash: _, ...profile } = user;
   res.json({ token, user: profile });
-});
+}));
 
-apiRouter.post('/auth/register', (req: Request, res: Response) => {
+apiRouter.post('/auth/register', asyncRoute(async (req: Request, res: Response) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email, and password are required' });
   }
 
-  const existing = db.getUserByEmail(email);
+  const existing = await db.getUserByEmail(email);
   if (existing) {
     return res.status(409).json({ error: 'An account with this email already exists' });
   }
 
-  const user = db.createUser(name, email, 'hash_' + password);
+  const user = await db.createUser(name, email, 'hash_' + password);
   const token = `usr_${user.id}`;
   res.status(201).json({ token, user });
-});
+}));
 
-apiRouter.get('/auth/me', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.get('/auth/me', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   res.json(user);
-});
+}));
 
 // ----------------------------------------------------
 // Library & Entitlements
 // ----------------------------------------------------
 
-apiRouter.get('/library', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.get('/library', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const entitlements = db.getUserEntitlements(user.id);
+  const entitlements = await db.getUserEntitlements(user.id);
   // Join application info
-  const items = entitlements.map((ent) => {
-    const app = db.getApplicationBySlug(ent.appId);
-    return {
-      entitlement: ent,
-      app,
-    };
-  });
+  const items = await Promise.all(
+    entitlements.map(async (ent) => {
+      const app = await db.getApplicationBySlug(ent.appId);
+      return {
+        entitlement: ent,
+        app,
+      };
+    })
+  );
 
   res.json(items);
-});
+}));
 
 // Activate a device for an entitlement
-apiRouter.post('/library/activate', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.post('/library/activate', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   const { entitlementId, deviceName, platform } = req.body;
-  const entitlements = db.getUserEntitlements(user.id);
+  const entitlements = await db.getUserEntitlements(user.id);
   const ent = entitlements.find((e) => e.id === entitlementId);
 
   if (!ent) {
@@ -186,27 +178,28 @@ apiRouter.post('/library/activate', (req: Request, res: Response) => {
       activatedAt: new Date().toISOString(),
     });
     ent.activationsUsed = ent.activeDevices.length;
+    await db.updateEntitlement(ent);
   }
 
   res.json({ success: true, entitlement: ent });
-});
+}));
 
 // ----------------------------------------------------
 // Wishlist Routes
 // ----------------------------------------------------
 
-apiRouter.get('/wishlist', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.get('/wishlist', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.json([]);
   }
-  const appIds = db.getUserWishlist(user.id);
-  const apps = appIds.map((id) => db.getApplicationBySlug(id)).filter(Boolean);
+  const appIds = await db.getUserWishlist(user.id);
+  const apps = (await Promise.all(appIds.map((id) => db.getApplicationBySlug(id)))).filter(Boolean);
   res.json(apps);
-});
+}));
 
-apiRouter.post('/wishlist/toggle', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.post('/wishlist/toggle', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -214,34 +207,36 @@ apiRouter.post('/wishlist/toggle', (req: Request, res: Response) => {
   if (!appId) {
     return res.status(400).json({ error: 'appId is required' });
   }
-  const updatedList = db.toggleWishlist(user.id, appId);
+  const updatedList = await db.toggleWishlist(user.id, appId);
   res.json({ wishlist: updatedList });
-});
+}));
 
 // ----------------------------------------------------
 // Cart & Checkout Routes
 // ----------------------------------------------------
 
-apiRouter.post('/checkout/validate', (req: Request, res: Response) => {
+apiRouter.post('/checkout/validate', asyncRoute(async (req: Request, res: Response) => {
   const { items, couponCode } = req.body;
   if (!Array.isArray(items)) {
     return res.status(400).json({ error: 'Items array is required' });
   }
 
   // Security: Re-verify real prices from database rather than trusting client numbers
-  const verifiedItems = items.map((item: CartItem) => {
-    const app = db.getApplicationBySlug(item.appId);
-    if (!app) return { priceUsd: 0 };
-    const plan = app.licensePlans.find((p) => p.id === item.planId);
-    return { priceUsd: plan ? plan.priceUsd : app.basePriceUsd };
-  });
+  const verifiedItems = await Promise.all(
+    items.map(async (item: CartItem) => {
+      const app = await db.getApplicationBySlug(item.appId);
+      if (!app) return { priceUsd: 0 };
+      const plan = app.licensePlans.find((p) => p.id === item.planId);
+      return { priceUsd: plan ? plan.priceUsd : app.basePriceUsd };
+    })
+  );
 
   const calculation = calculateOrderTotals(verifiedItems, couponCode);
   res.json(calculation);
-});
+}));
 
-apiRouter.post('/checkout/complete', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.post('/checkout/complete', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Please sign in to complete purchase' });
   }
@@ -252,11 +247,16 @@ apiRouter.post('/checkout/complete', (req: Request, res: Response) => {
   }
 
   // Server-authoritative price calculation
-  const verifiedItemsWithMeta = items.map((item: CartItem) => {
-    const app = db.getApplicationBySlug(item.appId);
-    if (!app) {
-      throw new Error(`Invalid application: ${item.appId}`);
-    }
+  const cartApps = await Promise.all(
+    items.map((item: CartItem) => db.getApplicationBySlug(item.appId))
+  );
+  const missingIndex = cartApps.findIndex((app) => !app);
+  if (missingIndex >= 0) {
+    return res.status(400).json({ error: `Invalid application: ${items[missingIndex].appId}` });
+  }
+
+  const verifiedItemsWithMeta = items.map((item: CartItem, index: number) => {
+    const app = cartApps[index]!;
     const plan = app.licensePlans.find((p) => p.id === item.planId) || {
       id: 'default',
       name: 'Standard License',
@@ -278,7 +278,7 @@ apiRouter.post('/checkout/complete', (req: Request, res: Response) => {
   const orderId = `ord-${Date.now()}`;
   const orderNumber = `NEX-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const orderItems = verifiedItemsWithMeta.map((entry) => {
+  const orderItems = await Promise.all(verifiedItemsWithMeta.map(async (entry) => {
     const licenseKey = generateLicenseKey();
 
     // Create persistent entitlement for each purchased app
@@ -295,7 +295,7 @@ apiRouter.post('/checkout/complete', (req: Request, res: Response) => {
       maxActivations: entry.plan.maxDeviceActivations || 2,
       activeDevices: [],
     };
-    db.addEntitlement(entitlement);
+    await db.addEntitlement(entitlement);
 
     return {
       appId: entry.app.id,
@@ -305,7 +305,7 @@ apiRouter.post('/checkout/complete', (req: Request, res: Response) => {
       unitPriceUsd: entry.priceUsd,
       licenseKey,
     };
-  });
+  }));
 
   const order: OrderRecord = {
     id: orderId,
@@ -323,42 +323,42 @@ apiRouter.post('/checkout/complete', (req: Request, res: Response) => {
     status: 'completed',
   };
 
-  db.createOrder(order);
+  await db.createOrder(order);
   res.status(201).json({ success: true, order });
-});
+}));
 
-apiRouter.get('/orders', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.get('/orders', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  const orders = db.getUserOrders(user.id);
+  const orders = await db.getUserOrders(user.id);
   res.json(orders);
-});
+}));
 
-apiRouter.get('/orders/:id', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.get('/orders/:id', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  const order = db.getOrderById(req.params.id);
+  const order = await db.getOrderById(req.params.id);
   if (!order || (order.userId !== user.id && user.role !== 'admin')) {
     return res.status(404).json({ error: 'Order not found' });
   }
   res.json(order);
-});
+}));
 
 // ----------------------------------------------------
 // Secure Downloads Infrastructure
 // ----------------------------------------------------
 
-apiRouter.post('/downloads/authorize', (req: Request, res: Response) => {
+apiRouter.post('/downloads/authorize', asyncRoute(async (req: Request, res: Response) => {
   const { appId, buildId } = req.body;
   if (!appId || !buildId) {
     return res.status(400).json({ error: 'appId and buildId are required' });
   }
 
-  const app = db.getApplicationBySlug(appId);
+  const app = await db.getApplicationBySlug(appId);
   if (!app) {
     return res.status(404).json({ error: 'Application not found' });
   }
@@ -369,8 +369,8 @@ apiRouter.post('/downloads/authorize', (req: Request, res: Response) => {
   }
 
   // Check user entitlement
-  const user = getAuthUser(req);
-  const entitlements = user ? db.getUserEntitlements(user.id) : [];
+  const user = await getAuthUser(req);
+  const entitlements = user ? await db.getUserEntitlements(user.id) : [];
   const entitlementCheck = verifyDownloadEntitlement(app, entitlements);
 
   if (!entitlementCheck.authorized) {
@@ -391,11 +391,10 @@ apiRouter.post('/downloads/authorize', (req: Request, res: Response) => {
   const cleanAppName = app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const filename = `${cleanAppName}-${build.version}-${build.architecture}${extension}`;
 
-  signedDownloadTokens.set(token, {
+  await db.createDownloadToken(token, expiresAt, {
     appId: app.id,
     buildId: build.id,
     userId: user?.id,
-    expiresAt,
     filename,
     fileSizeBytes: build.fileSizeBytes,
     sha256Checksum: build.sha256Checksum,
@@ -404,7 +403,7 @@ apiRouter.post('/downloads/authorize', (req: Request, res: Response) => {
   });
 
   if (user) {
-    db.recordDownload(user.id, build.id);
+    await db.recordDownload(user.id, app.id, build.id);
   }
 
   const authData: DownloadAuthorization = {
@@ -424,19 +423,19 @@ apiRouter.post('/downloads/authorize', (req: Request, res: Response) => {
   };
 
   res.json(authData);
-});
+}));
 
 // Stream verified installer file payload
-apiRouter.get('/downloads/file/:token', (req: Request, res: Response) => {
+apiRouter.get('/downloads/file/:token', asyncRoute(async (req: Request, res: Response) => {
   const token = req.params.token;
-  const tokenData = signedDownloadTokens.get(token);
+  const tokenData = await db.getDownloadToken(token);
 
   if (!tokenData) {
     return res.status(403).send('Download link is invalid or has expired. Please re-authorize in SAHRIVA Store.');
   }
 
   if (Date.now() > tokenData.expiresAt) {
-    signedDownloadTokens.delete(token);
+    await db.deleteDownloadToken(token);
     return res.status(403).send('Download link has expired. Please request a fresh authorization token.');
   }
 
@@ -452,14 +451,14 @@ apiRouter.get('/downloads/file/:token', (req: Request, res: Response) => {
   const buffer = Buffer.from(payloadHeader.padEnd(2048, '\0'));
 
   res.send(buffer);
-});
+}));
 
 // ----------------------------------------------------
 // Reviews & Support
 // ----------------------------------------------------
 
-apiRouter.post('/apps/:appId/reviews', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.post('/apps/:appId/reviews', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Please sign in to submit a review' });
   }
@@ -469,7 +468,7 @@ apiRouter.post('/apps/:appId/reviews', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Rating, title, and comment are required' });
   }
 
-  const entitlements = db.getUserEntitlements(user.id);
+  const entitlements = await db.getUserEntitlements(user.id);
   const isVerifiedBuyer = entitlements.some((e) => e.appId === req.params.appId);
 
   const review = {
@@ -484,12 +483,12 @@ apiRouter.post('/apps/:appId/reviews', (req: Request, res: Response) => {
     verifiedBuyer: isVerifiedBuyer,
   };
 
-  db.addReview(review);
+  await db.addReview(review);
   res.status(201).json({ success: true, review });
-});
+}));
 
-apiRouter.post('/support/tickets', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.post('/support/tickets', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   const { userEmail, subject, message, category } = req.body;
 
   if (!subject || !message || (!user && !userEmail)) {
@@ -507,22 +506,22 @@ apiRouter.post('/support/tickets', (req: Request, res: Response) => {
     createdAt: new Date().toISOString(),
   };
 
-  db.createTicket(ticket);
+  await db.createTicket(ticket);
   res.status(201).json({ success: true, ticket });
-});
+}));
 
 // ----------------------------------------------------
 // Admin Routes
 // ----------------------------------------------------
 
-apiRouter.get('/admin/overview', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.get('/admin/overview', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user || user.role !== 'admin') {
     return res.status(403).json({ error: 'Administrator access required' });
   }
 
-  const apps = db.getApplications();
-  const orders = db.getAllOrders();
+  const apps = await db.getApplications();
+  const orders = await db.getAllOrders();
   const totalRevenue = orders.reduce((sum, o) => sum + o.totalUsd, 0);
 
   const platformCount: Record<string, number> = {
@@ -544,12 +543,12 @@ apiRouter.get('/admin/overview', (req: Request, res: Response) => {
     totalRevenueUsd: Math.round(totalRevenue * 100) / 100,
     platformCount,
     recentOrders: orders.slice(0, 5),
-    tickets: db.getTickets(),
+    tickets: await db.getTickets(),
   });
-});
+}));
 
-apiRouter.post('/admin/apps', (req: Request, res: Response) => {
-  const user = getAuthUser(req);
+apiRouter.post('/admin/apps', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getAuthUser(req);
   if (!user || user.role !== 'admin') {
     return res.status(403).json({ error: 'Administrator access required' });
   }
@@ -559,6 +558,6 @@ apiRouter.post('/admin/apps', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'App name and slug are required' });
   }
 
-  db.addApplication(appData);
+  await db.addApplication(appData);
   res.status(201).json({ success: true, app: appData });
-});
+}));

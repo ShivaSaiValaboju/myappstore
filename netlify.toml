@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[dev]
+  command = "npx vite"
+  targetPort = 5173
+  framework = "#custom"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Route API calls to the Express API running in a Netlify Function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# Single-page app fallback so deep links like /apps/<slug> load on refresh
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -42,9 +42,11 @@ function MainApp() {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [categories, setCategories] = useState<StoreCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Fetch initial catalog data
   const fetchData = useCallback(async () => {
+    setLoadError(false);
     try {
       const [appsRes, catsRes] = await Promise.all([
         fetch('/api/apps'),
@@ -53,6 +55,8 @@ function MainApp() {
       if (appsRes.ok) {
         const appsData = await appsRes.json();
         setApplications(appsData);
+      } else {
+        setLoadError(true);
       }
       if (catsRes.ok) {
         const catsData = await catsRes.json();
@@ -60,6 +64,7 @@ function MainApp() {
       }
     } catch (err) {
       console.error('Failed to load store data:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -131,6 +136,22 @@ function MainApp() {
           ) : (
             <DiscoverViewSkeleton />
           )
+        ) : loadError && applications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center py-24 gap-4">
+            <h2 className="text-xl font-semibold">We couldn't load the store</h2>
+            <p className="text-sm text-[var(--text-secondary)] max-w-md">
+              The catalog is temporarily unavailable. Check your connection and try again.
+            </p>
+            <button
+              onClick={() => {
+                setLoading(true);
+                fetchData();
+              }}
+              className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
+            >
+              Try again
+            </button>
+          </div>
         ) : selectedAppSlug && selectedApp ? (
           <AppDetailView
             app={selectedApp}
